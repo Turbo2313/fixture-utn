@@ -8,75 +8,60 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Objects;
+import java.nio.file.StandardCopyOption;
 import java.util.UUID;
+
 @Service
 public class ImageStoreageService {
+// constructor sin paramentros
+    public ImageStoreageService() {}
+    // Recibe el archivo crudo y nos devuelve la direccion donde quedo guardado
+    public String storeImage(MultipartFile file, String subfolder) throws IOException {
 
-    public ImageStoreageService (){}
-
-// DEFINE EL DIRECTORIO BASE DONDE SE GUARDARAN LAS IMAGENES
-    private final String UPLOAD_DIR_SRC = "C:/IntelIdea/Proyectos/fixtureutn/fixtureutn/src/main/resources/static/img/";
-    private final String UPLOAD_DIR_TARGET = "C:/IntelIdea/Proyectos/fixtureutn/fixtureutn/target/classes/static/img/";
-
-
-    public String storeImage (MultipartFile file , String subfolder) throws IOException{
-
-        if (file.isEmpty()){
-
-
-            return null; // o lanzar excepcion
+        if (file.isEmpty()) {
+            return null;
         }
 
-        //obtenemos el nombre original del archivo
+        // 1. Obtener extensión del archivo
         String originalFileName = file.getOriginalFilename();
+        String fileExtension = "";
+        if (originalFileName != null && originalFileName.contains(".")) {
+            fileExtension = originalFileName.substring(originalFileName.lastIndexOf("."));
+        }
 
-        //obtenemos la extension del archivo
-
-        String fileExtension = Objects.requireNonNull(originalFileName).substring(originalFileName.lastIndexOf("."));
-
-        // generamos uin nombre de archivo unico para enviar colisiones
-
+        // 2. Generar nombre único (UUID) para que no se pisen las fotos
         String uniqueFileName = UUID.randomUUID().toString() + fileExtension;
 
-        // construimos la riuta completa donde se va aguardar el archivo
+        // 3. RUTAS DINÁMICAS (UNIVERSALES)
+        // Esto obtiene la carpeta donde está tu proyecto automáticamente
+        String projectDir = System.getProperty("user.dir");
 
-        Path uploadPathSrc = Paths.get(UPLOAD_DIR_SRC , subfolder);
+        // Ruta A: Código Fuente (para que la imagen quede guardada físicamente)
+        Path uploadPathSrc = Paths.get(projectDir, "src", "main", "resources", "static", "img", subfolder);
 
-        // crear el subdirectorio si no existe
+        // Ruta B: Target (para que se vea al instante en la web sin reiniciar)
+        Path uploadPathTarget = Paths.get(projectDir, "target", "classes", "static", "img", subfolder);
 
-        if (!Files.exists(uploadPathSrc)){
+        // 4. Crear carpetas si no existen
+        if (!Files.exists(uploadPathSrc)) {
             Files.createDirectories(uploadPathSrc);
-
         }
-
-        Path filePathSrc = uploadPathSrc.resolve(uniqueFileName);
-
-        // guardar el archivo en el sistema de archivo
-
-        Files.copy(file.getInputStream(), filePathSrc);
-
-        // devolver la ruta relativa que se guardara en la base de datos
-        // y el frontend usara para acceder a la imagen
-
-        Path uploadPathTarget = Paths.get(UPLOAD_DIR_TARGET , subfolder);
-
-        if (!Files.exists(uploadPathTarget)){
-
+        if (!Files.exists(uploadPathTarget)) {
             Files.createDirectories(uploadPathTarget);
         }
 
-       Path filePathTarget = uploadPathTarget.resolve(uniqueFileName);
-
-        try (InputStream inputStream = file.getInputStream()){
-            Files.copy(inputStream,filePathTarget);
+        // 5. Guardar en ambos lugares
+        try (InputStream inputStream = file.getInputStream()) {
+            Path filePathSrc = uploadPathSrc.resolve(uniqueFileName);
+            Files.copy(inputStream, filePathSrc, StandardCopyOption.REPLACE_EXISTING);
         }
 
-        return "/img/" +subfolder + "/" + uniqueFileName;
+        try (InputStream inputStream = file.getInputStream()) {
+            Path filePathTarget = uploadPathTarget.resolve(uniqueFileName);
+            Files.copy(inputStream, filePathTarget, StandardCopyOption.REPLACE_EXISTING);
+        }
 
-
-
+        // 6. Devolver la ruta relativa para la base de datos
+        return "/img/" + subfolder + "/" + uniqueFileName;
     }
-
-
 }
